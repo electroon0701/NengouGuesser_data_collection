@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101b25"><title>Named NPC Studio | 管理者データ分析</title>
+<style>
+:root{color-scheme:dark;--bg:#0e1821;--panel:#172833;--ink:#f2f2ec;--muted:#a8b6b7;--line:#38505a;--gold:#f2c66d;--teal:#79d4c5;--red:#ff9a88}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#2d4952 0,transparent 58%),var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Noto Sans JP",sans-serif}
+main{width:min(1120px,100%);margin:auto;padding:22px 14px 48px}.panel{background:linear-gradient(145deg,#20343f,#14232e);border:1px solid #52718066;border-radius:18px;padding:clamp(16px,3vw,26px);margin-bottom:16px}
+h1{margin:0;color:var(--gold);font-size:clamp(24px,4vw,34px)}h2{font-size:18px;color:#fff0c2;margin:0 0 10px}
+p,.muted{color:var(--muted)}.muted{font-size:12px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,button{font:inherit}input{padding:10px;border:1px solid var(--line);border-radius:9px;background:#0c151c;color:var(--ink);min-width:0}
+button{padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:#ffffff0c;color:var(--ink);font-weight:700;cursor:pointer}
+button.primary{background:var(--gold);color:#172126;border-color:var(--gold)}button:disabled{opacity:.45;cursor:not-allowed}
+.hidden{display:none!important}.status{min-height:24px;color:var(--teal);font-size:13px}.error{color:var(--red)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.metric{padding:13px;border:1px solid #ffffff20;border-radius:11px;background:#08151d}.metric b{display:block;font-size:24px;color:var(--gold);font-variant-numeric:tabular-nums}
+.tablewrap{overflow:auto;max-height:560px;border:1px solid #ffffff20;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px;border-bottom:1px solid #ffffff18;white-space:nowrap}th{position:sticky;top:0;background:#172833;color:#c8e6dc}
+a{color:var(--teal)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+@media(max-width:560px){main{padding:12px 9px 28px}.row input{width:100%}}
+</style></head>
+<body><main>
+<section class="panel">
+<p class="muted">CHRONOS ARCHIVE · ADMINISTRATOR ONLY</p>
+<h1>回答データ管理・分析</h1>
+<p>匿名で収集された回答ログを取得し、NPC用の統合ログと、問題別の分析データを書き出します。</p>
+<div id="loginBox">
+  <h2>管理者ログイン</h2>
+  <div class="row"><input id="email" type="email" autocomplete="username" placeholder="管理者メールアドレス">
+  <input id="password" type="password" autocomplete="current-password" placeholder="パスワード">
+  <button class="primary" id="login">ログイン</button></div>
+  <p class="muted">管理者アカウントはFirebase ConsoleのAuthenticationで事前に作成してください。一般参加者用の匿名認証とは別です。</p>
+</div>
+<div id="signedIn" class="hidden">
+  <div class="row"><span id="who" class="muted"></span><button id="refresh">データを再取得</button><button id="logout">ログアウト</button></div>
+  <div class="cards">
+    <div class="metric"><b id="sessions">0</b>セッション</div>
+    <div class="metric"><b id="people">0</b>匿名UID</div>
+    <div class="metric"><b id="answers">0</b>回答</div>
+    <div class="metric"><b id="questions">0</b>対象問題数</div>
+  </div>
+  <div class="actions">
+    <button class="primary" id="npcExport">NPC反映用・統合回答ログJSON</button>
+    <button id="rawExport">匿名セッション全件JSON</button>
+    <button id="csvExport">問題別分析CSV</button>
+    <button id="questionExport">分析付きquestions JSON</button>
+  </div>
+  <p class="muted">「NPC反映用JSON」は既存のネームドCPU管理画面の「プレイデータを反映」にそのまま読み込めます。分析付きquestions JSONは各問題に studyStats を追加した確認用コピーです。正解年・問題文は自動変更しません。</p>
+  <h2>問題別の回答傾向</h2>
+  <div class="tablewrap"><table><thead><tr><th>問題ID</th><th>問題文</th><th>回答数</th><th>平均誤差</th><th>中央値誤差</th><th>完全一致率</th><th>±5年率</th><th>平均時間</th><th>判定</th></tr></thead><tbody id="rows"></tbody></table></div>
+</div>
+<p id="status" class="status" role="status">Firebase設定を確認してください。</p>
+</section>
+<section class="panel">
+<h2>データの使い分け</h2>
+<ul class="muted">
+<li>NPC：全回答ログを統合してJSON出力し、ネームドCPU管理の各プロフィールへ読み込ませます。現行コンバーターは難易度別習熟率を更新します。</li>
+<li>問題：問題IDごとの誤差・正答傾向・回答時間を集計し、難易度や問題品質の見直しに使います。</li>
+<li>誤答が多いことだけで正解年が誤っているとは判断できません。正解年や問題文の修正は必ず人間が原資料で確認してください。</li>
+</ul>
+</section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="./firebase-config.js"></script>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);let allSessions=[],questionBank=[];
+const cfg=window.CHRONOS_FIREBASE_CONFIG;
+const valid=cfg&&cfg.apiKey&&!String(cfg.apiKey).includes('REPLACE_ME')&&cfg.projectId&&!String(cfg.projectId).includes('REPLACE_ME');
+function status(t,err=false){$('status').textContent=t;$('status').className='status'+(err?' error':'')}
+function app(){if(!valid)throw Error('firebase-config.js に新規Firebaseプロジェクトの設定を入力してください');if(!firebase.apps.length)firebase.initializeApp(cfg);return firebase}
+function median(a){if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2}
+function download(name,obj){const blob=new Blob([JSON.stringify(obj,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function csvDownload(name,rows){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const csv='\uFEFF'+rows.map(r=>r.map(q).join(',')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function loadQuestions(){const r=await fetch('./questions.json',{cache:'no-store'});if(!r.ok)throw Error('questions.jsonを読み込めません');questionBank=await r.json();if(!Array.isArray(questionBank))throw Error('questions.jsonの形式が不正です')}
+async function login(){try{app();await firebase.auth().signInWithEmailAndPassword($('email').value.trim(),$('password').value);$('loginBox').classList.add('hidden');$('signedIn').classList.remove('hidden');$('who').textContent='ログイン中: '+firebase.auth().currentUser.email;await loadData()}catch(e){status('ログインまたは読み込みに失敗しました: '+(e.message||e),true)}}
+async function loadData(){try{app();status('回答ログを取得しています…');await loadQuestions();const snap=await firebase.database().ref('studySessions').once('value');const tree=snap.val()||{};allSessions=[];for(const [uid,sessions] of Object.entries(tree)){for(const [sessionId,record] of Object.entries(sessions||{})){const answers=Array.isArray(record.answers)?record.answers:Object.keys(record.answers||{}).sort((a,b)=>Number(a)-Number(b)).map(k=>record.answers[k]);allSessions.push({uid,sessionId,record:{...record,answers}})}}
+const flat=allSessions.flatMap(s=>s.record.answers.map(a=>({...a,sessionId:s.sessionId,uid:s.uid,createdAt:s.record.createdAt})));
+const stats=new Map();for(const a of flat){if(!a.questionId)continue;if(!stats.has(a.questionId))stats.set(a.questionId,[]);stats.get(a.questionId).push(a)}
+$('sessions').textContent=allSessions.length.toLocaleString();$('people').textContent=new Set(allSessions.map(s=>s.uid)).size.toLocaleString();$('answers').textContent=flat.length.toLocaleString();$('questions').textContent=stats.size.toLocaleString();
+const qById=new Map(questionBank.map(q=>[String(q.id),q]));const rows=[];
+for(const [id,arr] of stats){const errors=arr.map(a=>Math.abs(Number(a.error)||0)),times=arr.map(a=>Math.max(0,Number(a.elapsedMs)||0));const mean=errors.reduce((x,y)=>x+y,0)/errors.length,exact=errors.filter(x=>x===0).length/arr.length,within5=errors.filter(x=>x<=5).length/arr.length;
+const q=qById.get(id)||{};const verdict=arr.length<5?'データ不足':(median(errors)>100?'難易度・出題文を要確認':(mean>50?'回答傾向を要確認':'現時点で大きな偏りなし'));
+rows.push({id,event:q.event||'(questions.jsonにIDなし)',level:q.level||arr[0].level||'',attempts:arr.length,meanError:mean,medianError:median(errors),exactRate:exact,within5Rate:within5,within10Rate:errors.filter(x=>x<=10).length/arr.length,meanResponseMs:times.reduce((x,y)=>x+y,0)/times.length,medianResponseMs:median(times),verdict});
+}
+rows.sort((a,b)=>b.attempts-a.attempts||a.id.localeCompare(b.id,'ja'));window.__stats=rows;window.__flat=flat;
+$('rows').innerHTML=rows.map(r=>'<tr><td>'+esc(r.id)+'</td><td title="'+esc(r.event)+'">'+esc(r.event.length>52?r.event.slice(0,52)+'…':r.event)+'</td><td>'+r.attempts+'</td><td>'+Math.round(r.meanError).toLocaleString()+'年</td><td>'+Math.round(r.medianError).toLocaleString()+'年</td><td>'+Math.round(r.exactRate*100)+'%</td><td>'+Math.round(r.within5Rate*100)+'%</td><td>'+Math.round(r.meanResponseMs/1000)+'秒</td><td>'+r.verdict+'</td></tr>').join('');
+status('取得完了：'+allSessions.length+'セッション、'+flat.length+'回答。');
+}catch(e){status('データ取得に失敗しました: '+(e.message||e)+'。Database Rulesの管理者UID設定を確認してください。',true)}}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function npcLog(){return {format:'chronos-player-answer-study',schemaVersion:1,source:'Named NPC Studio Firebase aggregate',createdAt:new Date().toISOString(),questionCount:window.__flat.length,answers:window.__flat.map(({questionId,level,period,band,guess,truth,error,elapsedMs})=>({questionId,level,period,band,guess,truth,error,elapsedMs}))}}
+$('login').addEventListener('click',login);$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+$('refresh').addEventListener('click',loadData);$('logout').addEventListener('click',async()=>{await firebase.auth().signOut();$('signedIn').classList.add('hidden');$('loginBox').classList.remove('hidden');status('ログアウトしました。')});
+$('npcExport').addEventListener('click',()=>download('chronos-aggregate-answer-study.json',npcLog()));
+$('rawExport').addEventListener('click',()=>download('chronos-anonymized-study-sessions.json',{schemaVersion:1,exportedAt:new Date().toISOString(),sessions:allSessions.map(s=>({sessionId:s.sessionId,createdAt:s.record.createdAt,questionCount:s.record.questionCount,answers:s.record.answers}))}));
+$('csvExport').addEventListener('click',()=>csvDownload('chronos-question-study-analysis.csv',[['questionId','event','level','attempts','meanErrorYears','medianErrorYears','exactRate','within5YearsRate','within10YearsRate','meanResponseMs','medianResponseMs','verdict'],...(window.__stats||[]).map(r=>[r.id,r.event,r.level,r.attempts,r.meanError,r.medianError,r.exactRate,r.within5Rate,r.within10Rate,r.meanResponseMs,r.medianResponseMs,r.verdict])]));
+$('questionExport').addEventListener('click',()=>{const byId=new Map((window.__stats||[]).map(r=>[r.id,r]));const enriched=questionBank.map(q=>{const s=byId.get(String(q.id));return s?{...q,studyStats:{attempts:s.attempts,meanErrorYears:Number(s.meanError.toFixed(2)),medianErrorYears:Number(s.medianError.toFixed(2)),exactRate:Number(s.exactRate.toFixed(4)),within5YearsRate:Number(s.within5Rate.toFixed(4)),within10YearsRate:Number(s.within10Rate.toFixed(4)),meanResponseMs:Math.round(s.meanResponseMs),verdict:s.verdict}}:q});download('questions-with-study-stats.json',enriched)});
+if(!valid)status('firebase-config.js が未設定です。READMEの手順で新規Firebaseの値を入力してください。',true);
+})();
+</script></body></html>

@@ -1,0 +1,66 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "studySessions": {
+      ".read": "auth != null && auth.uid === 'REPLACE_WITH_ADMIN_UID'",
+      "$uid": {
+        "$sessionId": {
+          ".write": "auth != null && auth.uid === $uid && !data.exists()",
+          ".validate": "newData.hasChildren(['schemaVersion','source','createdAt','questionCount','answers'])",
+          "schemaVersion": {
+            ".validate": "newData.isNumber() && newData.val() === 1"
+          },
+          "source": {
+            ".validate": "newData.isString() && newData.val() === 'chronos-answer-study'"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() >= 0"
+          },
+          "questionCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 50"
+          },
+          "answers": {
+            ".validate": "newData.hasChildren() && newData.numChildren() >= 1 && newData.numChildren() <= 50",
+            "$index": {
+              ".validate": "$index.matches(/^(0|[1-9][0-9]?)$/) && newData.hasChildren(['questionId','level','period','band','guess','truth','error','elapsedMs'])",
+              "questionId": {
+                ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 80"
+              },
+              "level": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "period": {
+                ".validate": "newData.isString() && newData.val().length <= 30"
+              },
+              "band": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 4"
+              },
+              "guess": {
+                ".validate": "newData.isNumber() && newData.val() >= -1999 && newData.val() <= 9999"
+              },
+              "truth": {
+                ".validate": "newData.isNumber() && newData.val() >= -1999 && newData.val() <= 9999"
+              },
+              "error": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 11998"
+              },
+              "elapsedMs": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3600000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      }
+    }
+  }
+}
